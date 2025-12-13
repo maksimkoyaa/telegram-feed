@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Feed</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Manrope', sans-serif;
+            background: #fff;
+            padding: 60px 20px;
+        }
+
+        .container {
+            max-width: 1160px;
+            margin: 0 auto;
+        }
+
+        .title {
+            font-size: 48px;
+            font-weight: 700;
+            margin-bottom: 40px;
+            color: #000;
+        }
+
+        .feed-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .feed-card {
+            background: #F5F5F7;
+            border-radius: 20px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .feed-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .card-media {
+            width: 100%;
+            height: 400px;
+            object-fit: cover;
+            background: #E5E5EA;
+        }
+
+        .card-video {
+            width: 100%;
+            height: 400px;
+            object-fit: cover;
+            background: #E5E5EA;
+        }
+
+        .card-content {
+            padding: 24px;
+        }
+
+        .card-text {
+            font-size: 18px;
+            line-height: 1.5;
+            color: #000;
+            display: -webkit-box;
+            -webkit-line-clamp: 4;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .card-date {
+            margin-top: 12px;
+            font-size: 14px;
+            color: #8E8E93;
+        }
+
+        /* CTA Card */
+        .cta-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            min-height: 400px;
+            cursor: pointer;
+        }
+
+        .cta-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .cta-content {
+            padding: 40px;
+        }
+
+        .cta-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 16px;
+        }
+
+        .cta-subtitle {
+            font-size: 18px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        /* Loading state */
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            font-size: 18px;
+            color: #8E8E93;
+        }
+
+        .error {
+            text-align: center;
+            padding: 60px 20px;
+            font-size: 18px;
+            color: #FF3B30;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            body {
+                padding: 40px 15px;
+            }
+
+            .title {
+                font-size: 32px;
+                margin-bottom: 30px;
+            }
+
+            .feed-grid {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .card-media,
+            .card-video {
+                height: 300px;
+            }
+
+            .card-content {
+                padding: 20px;
+            }
+
+            .card-text {
+                font-size: 16px;
+                -webkit-line-clamp: 3;
+            }
+
+            .cta-card {
+                min-height: 300px;
+            }
+
+            .cta-title {
+                font-size: 24px;
+            }
+
+            .cta-subtitle {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">Новости, анонсы, лайфстайл</h1>
+        <div id="feed" class="loading">Загружаем посты...</div>
+    </div>
+
+    <script>
+        // === НАСТРОЙКИ ===
+        // Замените на URL вашего GitHub репозитория с posts.json
+        // Формат: https://raw.githubusercontent.com/USERNAME/REPO/main/posts.json
+        const POSTS_JSON_URL = 'https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/posts.json';
+        
+        // Имя канала (для CTA карточки)
+        const CHANNEL_USERNAME = 'itmaksimkoya';
+
+        async function fetchPosts() {
+            const feedElement = document.getElementById('feed');
+            
+            try {
+                // Добавляем timestamp чтобы обойти кеш браузера
+                const response = await fetch(`${POSTS_JSON_URL}?t=${Date.now()}`);
+                
+                if (!response.ok) {
+                    throw new Error('Не удалось загрузить данные');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.posts || data.posts.length === 0) {
+                    throw new Error('Посты не найдены');
+                }
+                
+                renderFeed(data.posts);
+                
+            } catch (error) {
+                console.error('Ошибка:', error);
+                feedElement.className = 'error';
+                feedElement.innerHTML = `
+                    <p>Не удалось загрузить посты 😔</p>
+                    <p style="font-size: 14px; margin-top: 10px; opacity: 0.7;">Проверьте настройку GitHub репозитория</p>
+                `;
+            }
+        }
+
+        function renderFeed(posts) {
+            const feedElement = document.getElementById('feed');
+            feedElement.className = 'feed-grid';
+            feedElement.innerHTML = '';
+
+            // Добавляем посты
+            posts.forEach(post => {
+                const card = document.createElement('a');
+                card.className = 'feed-card';
+                card.href = post.link;
+                card.target = '_blank';
+                card.rel = 'noopener noreferrer';
+
+                let mediaHtml = '';
+                if (post.type === 'video' && post.video) {
+                    mediaHtml = `<video class="card-video" src="${post.video}" autoplay muted loop playsinline></video>`;
+                } else if (post.type === 'photo' && post.image) {
+                    mediaHtml = `<img class="card-media" src="${post.image}" alt="Post image" loading="lazy">`;
+                }
+
+                card.innerHTML = `
+                    ${mediaHtml}
+                    <div class="card-content">
+                        <div class="card-text">${escapeHtml(post.text)}</div>
+                        <div class="card-date">${post.date}</div>
+                    </div>
+                `;
+
+                feedElement.appendChild(card);
+            });
+
+            // Добавляем CTA карточку
+            const ctaCard = document.createElement('a');
+            ctaCard.className = 'feed-card cta-card';
+            ctaCard.href = `https://t.me/${CHANNEL_USERNAME}`;
+            ctaCard.target = '_blank';
+            ctaCard.rel = 'noopener noreferrer';
+            ctaCard.innerHTML = `
+                <div class="cta-content">
+                    <div class="cta-title">Заходи, не стесняйся</div>
+                    <div class="cta-subtitle">Больше постов в телеграме →</div>
+                </div>
+            `;
+
+            feedElement.appendChild(ctaCard);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Запускаем загрузку при загрузке страницы
+        window.addEventListener('DOMContentLoaded', fetchPosts);
+    </script>
+</body>
+</html>
