@@ -1,5 +1,33 @@
 {
   "channel": "itmaksimkoya",
-  "updated_at": "2024-12-14T00:00:00",
-  "posts": []
+  "updated_at": "2025-12-13T22:43:27.998295",
+  "posts": [
+    {
+      "id": 1915,
+      "text": "",
+      "date": "25 мая",
+      "link": "https://t.me/itmaksimkoya/1915",
+      "image": null,
+      "video": null,
+      "type": "text"
+    },
+    {
+      "id": 1916,
+      "text": "Час назад я сильно захотел велосипед",
+      "date": "08 июня",
+      "link": "https://t.me/itmaksimkoya/1916",
+      "image": null,
+      "video": null,
+      "type": "text"
+    },
+    {
+      "id": 1917,
+      "text": "",
+      "date": "Недавно",
+      "link": "https://t.me/itmaksimkoya/1917",
+      "image": null,
+      "video": "https://cdn4.telesco.pe/file/0d17f5f21d.mp4?token=v5lwv-hSOVrlLF5PKLhDKpi6UBbao9Z13CY965Gir6v2wB5HW4qDJ8IuYHSZa0rF4tucZTGMCBIf9_FmYM0FTdNsjxFitoFMz1JlNyjr1FQBfdAKMQJNgB_JJdyzplZK4JA_yUOzfMr8ul2hOHfsi6MIKI14uQN_6MPAqmHglnsaDm1H5RQcReL3fkZrE5wt3J56Q7-rWjWa01xJkdMGEbGO2akYcsCh0u2tbVeAxA_rKG6Aqxkb6uR0Wj3xvW9TQ3mOT8LyU8xYM0RVlYZEyt9mfZDoXgh4rjxxI51vhqY34dEhhqfrSXBjNsiUECPxeN7g9Cr9af7BTXLGru6zlg",
+      "type": "video"
+    }
+  ]
 }
