@@ -104,8 +104,7 @@ def fetch_telegram_posts():
                 post_id = post_link.split('/')[-1]
                 
                 text_elem = post_elem.find('div', class_='tgme_widget_message_text')
-                text = text_elem.get_text(strip=True) if text_elem else ''
-                
+                text = text_elem.get_text(separator='\n', strip=True) if text_elem else ''                
                 if len(text) > 200: text = text[:200] + '...'
                 
                 # Дата
