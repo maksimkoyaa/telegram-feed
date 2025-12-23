@@ -17,7 +17,7 @@ import time
 # --- КОНФИГУРАЦИЯ ---
 CHANNEL_USERNAME = os.environ.get('CHANNEL_USERNAME', 'itmaksimkoya')
 WANTED_POSTS_COUNT = 3  # Сколько постов нужно найти для сайта
-MIN_POST_LENGTH = 100   # Минимальная длина текста (чтобы отсеять "Доброе утро" и т.д.)
+MIN_POST_LENGTH = 300   # Минимальная длина текста (чтобы отсеять "Доброе утро" и т.д.)
 
 def get_accurate_stats(post_link):
     """
