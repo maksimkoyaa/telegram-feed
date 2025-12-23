@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-Скрипт для получения последних постов из Telegram канала.
-Использует Embed-режим для получения точного количества просмотров.
+Скрипт для парсинга постов из Telegram канала для сайта.
+Логика фильтрации:
+1. Ищет посты, пока не наберет WANTED_POSTS_COUNT штук.
+2. Пропускает посты без картинки.
+3. Пропускает посты короче MIN_POST_LENGTH символов.
 """
 
 import json
@@ -11,9 +14,10 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import time
 
-# Получаем переменные
+# --- КОНФИГУРАЦИЯ ---
 CHANNEL_USERNAME = os.environ.get('CHANNEL_USERNAME', 'itmaksimkoya')
-POSTS_TO_FETCH = 3
+WANTED_POSTS_COUNT = 3  # Сколько постов нужно найти для сайта
+MIN_POST_LENGTH = 100   # Минимальная длина текста (чтобы отсеять "Доброе утро" и т.д.)
 
 def get_accurate_stats(post_link):
     """
@@ -21,8 +25,7 @@ def get_accurate_stats(post_link):
     чтобы получить точные просмотры и реакции.
     """
     try:
-        # Формируем URL для embed версии (она часто содержит более свежие данные)
-        # mode=tme притворяется клиентом Telegram
+        # mode=tme притворяется клиентом Telegram для получения свежих данных
         embed_url = f"{post_link}?embed=1&mode=tme"
         
         headers = {
@@ -43,11 +46,10 @@ def get_accurate_stats(post_link):
         if views_elem:
             views = views_elem.get_text(strip=True)
             
-        # 2. Парсим реакции (если они есть в статике)
-        # В embed версии реакции часто лежат в другом блоке
+        # 2. Парсим реакции
         reactions_list = []
         
-        # Попытка найти реакции в разных вариациях верстки
+        # Реакции могут быть в разных контейнерах в зависимости от версии верстки
         reactions_block = soup.find('div', class_='tgme_widget_message_reactions') or \
                           soup.find('div', class_='mw-reactions-container')
         
@@ -70,7 +72,10 @@ def get_accurate_stats(post_link):
         return None, []
 
 def fetch_telegram_posts():
-    """Получает посты и обогащает их точной статистикой"""
+    """
+    Сканирует ленту и отбирает посты, соответствующие критериям качества.
+    Останавливается, когда найдено WANTED_POSTS_COUNT постов.
+    """
     
     url = f'https://t.me/s/{CHANNEL_USERNAME}'
     
@@ -88,23 +93,59 @@ def fetch_telegram_posts():
         if not all_posts:
             return []
 
-        # Берем последние N постов
-        posts_elements = all_posts[-POSTS_TO_FETCH:]
-        posts_elements = reversed(posts_elements)
+        # Разворачиваем список, чтобы идти от Самых Новых к Старым
+        posts_elements = reversed(all_posts)
         
         posts = []
         
+        print(f"Начинаем сканирование постов (нужно найти: {WANTED_POSTS_COUNT})...")
+        
         for post_elem in posts_elements:
+            # === ГЛАВНОЕ УСЛОВИЕ ОСТАНОВКИ ===
+            if len(posts) >= WANTED_POSTS_COUNT:
+                break
+            # =================================
+
             try:
-                # --- Базовый парсинг (как раньше) ---
+                # --- 1. Сбор сырых данных ---
                 link_elem = post_elem.find('a', class_='tgme_widget_message_date')
                 if not link_elem: continue
                 
                 post_link = link_elem['href']
                 post_id = post_link.split('/')[-1]
                 
+                # Текст
                 text_elem = post_elem.find('div', class_='tgme_widget_message_text')
-                text = text_elem.get_text(separator='\n', strip=True) if text_elem else ''                
+                text = text_elem.get_text(separator='\n', strip=True) if text_elem else ''
+                
+                # Картинка
+                image = None
+                photo_elem = post_elem.find('a', class_='tgme_widget_message_photo_wrap')
+                if photo_elem:
+                    style = photo_elem.get('style', '')
+                    if 'background-image:url' in style:
+                        image = style.split("url('")[1].split("')")[0] if "url('" in style else None
+                
+                # Видео
+                video = None
+                video_elem = post_elem.find('video')
+                if video_elem and video_elem.get('src'): video = video_elem['src']
+                
+                # --- 2. ФИЛЬТРАЦИЯ (Фейсконтроль) ---
+                
+                # Условие А: Нет картинки -> Пропускаем
+                if not image:
+                    # print(f"Skipped {post_id}: no image")
+                    continue
+                
+                # Условие Б: Текст слишком короткий -> Пропускаем
+                if len(text) < MIN_POST_LENGTH:
+                    # print(f"Skipped {post_id}: too short ({len(text)} chars)")
+                    continue
+                
+                # --- 3. Пост прошел проверку, обрабатываем ---
+                
+                # Обрезка для превью (если нужно)
                 if len(text) > 200: text = text[:200] + '...'
                 
                 # Дата
@@ -117,35 +158,19 @@ def fetch_telegram_posts():
                 else:
                     date_str = 'Недавно'
                 
-                # Медиа
-                image = None
-                photo_elem = post_elem.find('a', class_='tgme_widget_message_photo_wrap')
-                if photo_elem:
-                    style = photo_elem.get('style', '')
-                    if 'background-image:url' in style:
-                        image = style.split("url('")[1].split("')")[0] if "url('" in style else None
-                
-                video = None
-                video_elem = post_elem.find('video')
-                if video_elem and video_elem.get('src'): video = video_elem['src']
-                
                 content_type = 'text'
                 if video: content_type = 'video'
                 elif image: content_type = 'photo'
                 
-                # --- ЭТАП 2: УТОЧНЕНИЕ СТАТИСТИКИ ---
-                # Делаем отдельный запрос к embed странице поста
-                # Берем статистику из первичного парсинга как заглушку
+                # Запрашиваем точную статистику
                 initial_views = "0"
                 views_elem = post_elem.find('span', class_='tgme_widget_message_views')
                 if views_elem: initial_views = views_elem.get_text(strip=True)
                 
-                # Запрашиваем точные данные
                 real_views, real_reactions = get_accurate_stats(post_link)
                 
-                # Если embed вернул данные - используем их, иначе оставляем старые
                 final_views = real_views if real_views else initial_views
-                final_reactions = real_reactions # Если пусто, значит пусто
+                final_reactions = real_reactions
                 
                 post_data = {
                     'id': int(post_id),
@@ -160,30 +185,31 @@ def fetch_telegram_posts():
                 }
                 
                 posts.append(post_data)
+                print(f"Добавлен пост {post_id} (Текст: {len(text)} симв.)")
                 
-                # Небольшая пауза, чтобы не дудосить телеграм
+                # Пауза, чтобы не получить бан
                 time.sleep(0.5)
                 
             except Exception as e:
-                print(f"Ошибка: {e}")
+                print(f"Ошибка при обработке поста: {e}")
                 continue
         
         return posts
         
     except Exception as e:
-        print(f"Ошибка при получении постов: {e}")
+        print(f"Критическая ошибка при получении постов: {e}")
         return []
 
 def main():
-    print(f"Получаем посты из канала @{CHANNEL_USERNAME}...")
+    print(f"Канал: @{CHANNEL_USERNAME}")
+    print(f"Фильтр: Картинка + Текст > {MIN_POST_LENGTH} символов")
+    
     posts = fetch_telegram_posts()
     
     if posts:
-        print(f"Успешно получено постов: {len(posts)}")
-        # Отладочный вывод
-        print(f"Пример: ID {posts[0]['id']} | Просмотры: {posts[0]['views']} | Реакции: {len(posts[0]['reactions'])}")
+        print(f"Итого отобрано: {len(posts)} постов.")
     else:
-        print("Посты не найдены.")
+        print("Подходящие посты не найдены (возможно, на странице только короткие записи или кружочки).")
         posts = []
     
     output_data = {
@@ -195,7 +221,7 @@ def main():
     with open('posts.json', 'w', encoding='utf-8') as f:
         json.dump(output_data, f, ensure_ascii=False, indent=2)
     
-    print("posts.json обновлён!")
+    print("Файл posts.json успешно обновлён!")
 
 if __name__ == '__main__':
     main()
